@@ -9,7 +9,7 @@ class ProfileRecord
 	public $detail;
 	private $parent;
 	
-	function __construct($name, $started, $detail)
+	function __construct($name, $started, $detail = "")
 	{
 		$this->children = array();
 		$this->started = $started;

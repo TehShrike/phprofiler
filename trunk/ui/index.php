@@ -1,8 +1,11 @@
 <?php
 
-require('../config.php');
+require_once('../config.php');
+require_once('../phprofiler.php');
 
 $mysql = new mysqli(PHProfilerConfig::$db_host, PHProfilerConfig::$db_name, PHProfilerConfig::$db_password, PHProfilerConfig::$db_user);
+
+$GLOBALS['phprofiler'] = new Profiler('../reporter.php', 5);
 
 function html_escape($str)
 {
@@ -16,6 +19,7 @@ function MakeSureDateIsOK($string)
 
 if (!isset($_GET['date']) || !MakeSureDateIsOK($_GET['date']))
 {
+	date_default_timezone_set('UTC');
 	$date = date('Y-m-d H:i:s');
 }
 
@@ -92,6 +96,7 @@ $new_link_sections = array();
 
 foreach($sections as $section)
 {
+	$GLOBALS['phprofiler']->BeginSection('Iterating over sections', $section['name']);
 	$new_link_sections[] = $section;
 	
 	if (count($new_link_sections) > 1)
@@ -100,6 +105,7 @@ foreach($sections as $section)
 	}
 	
 	print GenerateLink($new_link_sections, $date, $days);
+	$GLOBALS['phprofiler']->EndSection('Iterating over sections');
 }
 
 ?>
@@ -121,6 +127,7 @@ if ($section_id == 0)
 }
 else
 {
+	$GLOBALS['phprofiler']->BeginSection('Getting parent section data', "Section $section_id - $days days");
 	$query = "SELECT page.domain, section.`name`, ROUND(AVG(section_load.run_time) / POW(10, page_load.`precision`), page_load.`precision`) AS average_run_time "
 		. "FROM section "
 		. "JOIN page ON page.id = section.page_id "
@@ -132,6 +139,7 @@ else
 	{
 		print html_escape($row['domain']) . ' ' . html_escape($row['name']) . ' - average ' . html_escape($row['average_run_time']) . ' seconds';
 	}
+	$GLOBALS['phprofiler']->EndSection('Getting parent section data');
 }
 
 ?>
@@ -154,6 +162,8 @@ else
 
 if ($section_id == 0)
 {
+	$GLOBALS['phprofiler']->BeginSection('Getting child sections', "Section $section_id - $days days");
+	
 	$query = "SELECT section.id AS section_id, page.domain, page.`file`, "
 		. "ROUND(AVG(page_load.run_time) / POW(10, page_load.`precision`), page_load.`precision`) AS average_time_per_load, "
 		. "MIN(page_load.run_time) / POW(10, page_load.`precision`) AS min_run_time, "
@@ -180,9 +190,12 @@ if ($section_id == 0)
 				. "</td></tr>";
 		}
 	}
+	$GLOBALS['phprofiler']->EndSection('Getting child sections');
 }
 else
 {
+	$GLOBALS['phprofiler']->BeginSection('Getting child sections', "Section $section_id - $days days");
+	
 	$query = "SELECT domain, section_id, section_name, ROUND(AVG(total_run_time), `precision`) AS average_time_per_page_load, "
 		. "ROUND(AVG(average_run_time), `precision`) AS average_time_per_section, ROUND(AVG(times_run), 1) AS average_times_run, "
 		. "MAX(total_run_time) AS max_run_time, MIN(total_run_time) AS min_run_time, `precision` "
@@ -203,8 +216,6 @@ else
 		. "GROUP BY butts.section_id "
 		. "ORDER BY domain, section_name";
 
-	print "\n<!-- " . $query . " -->\n";
-
 	if ($res = $mysql->query($query))
 	{
 		$last_section_index = count($sections);
@@ -221,6 +232,8 @@ else
 				. "</td><td class='numeric-column'>" . number_format($row['max_run_time'], $row['precision']) . "</td></tr>";
 		}
 	}
+	
+	$GLOBALS['phprofiler']->EndSection('Getting child sections');
 }
 
 ?>
